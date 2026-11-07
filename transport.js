@@ -6,18 +6,18 @@ window.PartyTransport=(()=>{
   const endpoint=window.PARTY_CONFIG?.backendUrl||'';
   if(!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(endpoint))throw Error('The Google connection URL is missing or invalid in config.js.');
   const id=crypto.randomUUID(),controller=new AbortController();
-  const timeout=setTimeout(()=>controller.abort(),action==='audioUpload'?90000:45000);
+  let timeout;const readOnly=['state','audioState','challengeImage','challengeImages','paintingImage','audioClip'].includes(action);const deadline=new Promise((resolve,reject)=>{timeout=setTimeout(()=>{controller.abort();reject(Error('Connection deadline exceeded'));},action==='audioUpload'?90000:readOnly?20000:45000);});
   let response,text;
   try{
-   response=await fetch(endpoint,{
+   await Promise.race([(async()=>{response=await fetch(endpoint,{
     method:'POST',credentials:'omit',redirect:'follow',
     headers:{'Content-Type':'text/plain;charset=UTF-8'},
     body:JSON.stringify({protocol,id,action,params}),
     signal:controller.signal
    });
-   text=await response.text();
+   text=await response.text();})(),deadline]);
   }catch(e){
-   if(controller.signal.aborted)throw Error('Google took too long to respond. Your input is still here. Refresh to check whether a save arrived before trying it again.');
+   if(controller.signal.aborted)throw Error(readOnly?'Google took too long to respond. Check your connection, then try again.':'Google took too long to respond. Your input is still here. Refresh to check whether a save arrived before trying it again.');
    throw Error('Could not reach the Google game service. Check your connection and that the latest Code.gs was published with access set to Anyone.');
   }finally{clearTimeout(timeout);}
   if(!response.ok)throw Error('Google returned an error ('+response.status+'). Check the web-app deployment and try again.');
